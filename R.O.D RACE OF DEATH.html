@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>R.O.D: Race of Death</title>
+    <style>
+        :root {
+            --neon-blue: #00f0ff;
+            --neon-pink: #ff0055;
+            --amber: #ffaa00;
+            --green: #00ff66;
+            --dark: #04060d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
+        body {
+            overflow: hidden;
+            background: var(--dark);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #damage-flash {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            box-shadow: inset 0 0 0 rgba(255, 0, 85, 0);
+            transition: box-shadow 0.05s ease-out;
+            z-index: 8;
+        }
+        #heal-flash {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            box-shadow: inset 0 0 0 rgba(0, 255, 102, 0);
+            transition: box-shadow 0.08s ease-out;
+            z-index: 8;
+        }
+        #hud {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: none;
+            z-index: 5;
+        }
+        #top-hud {
+            position: absolute;
+            top: 14px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .hud-card {
+            background: rgba(8, 12, 22, 0.88);
+            border: 1px solid rgba(0, 240, 255, 0.35);
+            padding: 6px 14px;
+            color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+        }
+        .val { font-size: 20px; font-weight: 900; font-family: monospace; color: var(--amber); }
+        
+        #center-hud {
+            text-align: center;
+            color: #fff;
+        }
+        #center-hud h2 { font-size: 18px; letter-spacing: 3px; text-shadow: 0 0 15px var(--neon-pink); }
+        #biome-badge {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--neon-blue);
+            margin-top: 2px;
+        }
+        
+        #progress-box {
+            position: absolute;
+            top: 72px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 270px;
+            background: rgba(8, 12, 22, 0.85);
+            border: 1px solid rgba(255, 170, 0, 0.4);
+            padding: 5px 12px;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+        }
+        .bar-outer {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.15);
+            margin: 4px 0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        #progress-bar { width: 0%; height: 100%; background: var(--amber); }
+
+        #bottom-left {
+            position: absolute;
+            top: 72px;
+            left: 16px;
+            color: #fff;
+        }
+        #hp-bar { width: 100%; height: 100%; background: #00ff66; transition: width 0.08s; }
+
+        /* Mobile Touch Controls */
+        #mobile-controls {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 7;
+            display: none;
+        }
+        .touch-btn {
+            position: absolute;
+            pointer-events: auto;
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: rgba(12, 20, 36, 0.82);
+            border: 2px solid rgba(0, 240, 255, 0.4);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 900;
+            box-shadow: 0 0 15px rgba(0,0,0,0.6);
+        }
+        .touch-btn:active {
+            background: var(--neon-blue);
+            color: #000;
+        }
+        #btn-left { bottom: 30px; left: 24px; }
+        #btn-right { bottom: 30px; left: 110px; }
+        #btn-fire { bottom: 30px; right: 110px; border-color: var(--neon-blue); }
+        #btn-missile { bottom: 30px; right: 24px; border-color: var(--neon-pink); }
+        #btn-heal { bottom: 115px; right: 24px; border-color: var(--green); color: var(--green); }
+        #btn-heal:active { background: var(--green); color: #000; }
+
+        #menu, #end-screen {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(14, 22, 38, 0.95) 0%, rgba(3, 5, 10, 0.98) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: #fff;
+            text-align: center;
+            padding: 24px;
+        }
+        #end-screen { display: none; }
+        h1 { font-size: 34px; letter-spacing: 4px; color: #fff; text-shadow: 0 0 25px var(--neon-pink); margin-bottom: 10px; }
+        .btn {
+            padding: 15px 44px;
+            background: linear-gradient(135deg, rgba(255, 0, 85, 0.4), rgba(0, 240, 255, 0.4));
+            border: 2px solid var(--neon-blue);
+            color: #fff;
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            cursor: pointer;
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.45);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: var(--neon-blue); color: #000; }
+
+        #kill-popup {
+            position: absolute;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: 900;
+            color: #00ff66;
+            text-shadow: 0 0 25px #00ff66;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="damage-flash"></div>
+    <div id="heal-flash"></div>
+    <div id="kill-popup">+500 DESTROYED // REINFORCEMENTS INCOMING</div>
+
+    <div id="menu">
+        <h1>R.O.D: RACE OF DEATH</h1>
+        <button class="btn" onclick="Engine.init()">DEPLOY WAR PLATFORM</button>
+    </div>
+
+    <div id="end-screen">
+        <h1 id="end-title"></h1>
+        <button class="btn" onclick="location.reload()">REPLAY RACE</button>
+    </div>
+
+    <div id="hud">
+        <div id="top-hud">
+            <div class="hud-card">
+                <div style="font-size: 10px; color: #8fa4be;">SCORE</div>
+                <div class="val" id="score-txt">0</div>
+            </div>
+            <div id="center-hud">
+                <h2>R.O.D: RACE OF DEATH</h2>
+                <div id="biome-badge">SECTOR: CITY</div>
+            </div>
+            <div class="hud-card" style="text-align: right;">
+                <div style="font-size: 10px; color: #8fa4be;">MULTIPLIER</div>
+                <div class="val" style="color: var(--neon-pink);" id="mult-txt">X1</div>
+            </div>
+        </div>
+
+        <div id="bottom-left" class="hud-card">
+            <div style="font-size: 10px; margin-bottom: 2px;">ARMOR: <span id="hp-txt">100%</span></div>
+            <div class="bar-outer" style="width: 140px;"><div id="hp-bar"></div></div>
+            <div style="font-size: 10px; color: #aaa; margin-top: 4px;">ACTIVE RIVALS: <span id="rival-count" style="color: var(--neon-pink); font-weight: bold;">2</span></div>
+            <div style="font-size: 10px; color: var(--green); margin-top: 2px;">PRESS [H] TO REPAIR (+10%)</div>
+        </div>
+
+        <div id="progress-box">
+            <div style="font-size: 10px; letter-spacing: 1px;">TIME REMAINING / FINISH LINE</div>
+            <div class="bar-outer"><div id="progress-bar"></div></div>
+            <div style="font-size: 10px; color: #aaa;" id="dist-txt">10:00 (31,680m REMAINING)</div>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="touch-btn" id="btn-left">◀</div>
+        <div class="touch-btn" id="btn-right">▶</div>
+        <div class="touch-btn" id="btn-fire">GUN</div>
+        <div class="touch-btn" id="btn-missile">BOMB</div>
+        <div class="touch-btn" id="btn-heal">REPAIR</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.themeAudio = null;
+            }
+            init() {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AC();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                this.themeAudio = new Audio('Spy vs Spy - DJ Williams.mp3');
+                this.themeAudio.loop = true;
+                this.themeAudio.volume = 0.8;
+                
+                const playPromise = this.themeAudio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(() => {
+                        this.startProceduralBeat();
+                    });
+                }
+            }
+            startProceduralBeat() {
+                setInterval(() => {
+                    if (!this.ctx) return;
+                    const t = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(65, t);
+                    osc.frequency.exponentialRampToValueAtTime(30, t + 0.16);
+                    gain.gain.setValueAtTime(0.25, t);
+                    gain.gain.linearRampToValueAtTime(0.01, t + 0.16);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(t); osc.stop(t + 0.16);
+                }, 390);
+            }
+            playGun(isEnemy = false) {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(isEnemy ? 260 : 540, t);
+                osc.frequency.exponentialRampToValueAtTime(50, t + 0.09);
+                gain.gain.setValueAtTime(isEnemy ? 0.22 : 0.3, t);
+                gain.gain.linearRampToValueAtTime(0.01, t + 0.09);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(t); osc.stop(t + 0.09);
+            }
+            playExplosion() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(140, t);
+                osc.frequency.exponentialRampToValueAtTime(20, t + 0.5);
+                gain.gain.setValueAtTime(0.85, t);
+                gain.gain.linearRampToValueAtTime(0.01, t + 0.5);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(t); osc.stop(t + 0.5);
+            }
+            playHeal() {
+                if (!this.ctx) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(320, t);
+                osc.frequency.exponentialRampToValueAtTime(680, t + 0.18);
+                gain.gain.setValueAtTime(0.35, t);
+                gain.gain.linearRampToValueAtTime(0.01, t + 0.18);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(t); osc.stop(t + 0.18);
+            }
+        }
+
+        class HighFidelityDeathRace {
+            constructor() {
+                this.sound = new SoundFX();
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+
+                this.totalTimeSeconds = 600;
+                this.raceLength = 31680;
+                this.progress = 0;
+                this.score = 0;
+                this.mult = 1;
+                this.isOver = false;
+
+                this.invulnerableTimer = 180;
+                this.hitCooldown = 0;
+
+                this.biomes = [
+                    { name: 'CITY', sky: 0x060912, fog: 0x060912, road: 0x14171d, density: 0.0035 },
+                    { name: 'MARKET', sky: 0x1a0a14, fog: 0x1a0a14, road: 0x22131b, density: 0.0038 },
+                    { name: 'MOUNTAINS', sky: 0x0a1424, fog: 0x0a1424, road: 0x181e28, density: 0.0040 },
+                    { name: 'JUNGLE', sky: 0x041308, fog: 0x041308, road: 0x0d1c10, density: 0.0042 },
+                    { name: 'DESERT', sky: 0x241508, fog: 0x241508, road: 0x332010, density: 0.0036 }
+                ];
+                this.currentBiomeIndex = 0;
+                this.biomeIntervalDistance = 1500;
+
+                this.player = { mesh: null, x: 0, hp: 100 };
+                this.rivals = [];
+                this.maxRivalsOnScreen = 6;
+                this.playerBullets = [];
+                this.enemyBullets = [];
+                this.missiles = [];
+                this.particles = [];
+                this.roadPlates = [];
+                
+                this.sceneryGroups = {
+                    CITY: [],
+                    MARKET: [],
+                    MOUNTAINS: [],
+                    JUNGLE: [],
+                    DESERT: []
+                };
+
+                this.inputs = { left: false, right: false };
+            }
+
+            init() {
+                document.getElementById('menu').style.display = 'none';
+                document.getElementById('hud').style.display = 'block';
+                document.getElementById('mobile-controls').style.display = 'block';
+
+                this.sound.init();
+                this.setupScene();
+                this.buildAllEnvironments();
+                this.buildVehicles();
+                this.buildFinishArch();
+                this.bindInputs();
+
+                this.animate();
+            }
+
+            setupScene() {
+                this.scene = new THREE.Scene();
+                const initB = this.biomes[0];
+                this.scene.background = new THREE.Color(initB.sky);
+                this.scene.fog = new THREE.FogExp2(initB.fog, initB.density);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.25;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.ambient = new THREE.AmbientLight(0x8fa8cf, 1.4);
+                this.scene.add(this.ambient);
+
+                this.sun = new THREE.DirectionalLight(0xffeedd, 2.8);
+                this.sun.position.set(70, 140, 50);
+                this.sun.castShadow = true;
+                this.scene.add(this.sun);
+            }
+
+            buildAllEnvironments() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512; canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#14171d'; ctx.fillRect(0, 0, 512, 512);
+                ctx.fillStyle = '#d49b28'; ctx.fillRect(250, 0, 5, 512); ctx.fillRect(260, 0, 5, 512);
+                ctx.fillStyle = '#e0e6ed'; ctx.fillRect(20, 0, 6, 512); ctx.fillRect(486, 0, 6, 512);
+
+                const roadTex = new THREE.CanvasTexture(canvas);
+                roadTex.wrapS = THREE.RepeatWrapping; roadTex.wrapT = THREE.RepeatWrapping;
+                roadTex.repeat.set(1, 16);
+
+                this.roadMat = new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.5, metalness: 0.35 });
+
+                for (let i = 0; i < 3; i++) {
+                    const road = new THREE.Mesh(new THREE.PlaneGeometry(26, 300), this.roadMat);
+                    road.rotateX(-Math.PI / 2);
+                    road.position.z = -i * 300;
+                    this.scene.add(road);
+                    this.roadPlates.push(road);
+                }
+
+                const railMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, roughness: 0.4, metalness: 0.8 });
+                [-13, 13].forEach(x => {
+                    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.2, 900), railMat);
+                    rail.position.set(x, 0.6, -300);
+                    this.scene.add(rail);
+                });
+
+                // 1. CITY
+                const bldgMat = new THREE.MeshStandardMaterial({ color: 0x161e2b, roughness: 0.5, metalness: 0.6 });
+                for (let z = 50; z >= -800; z -= 70) {
+                    [-38, 38].forEach(x => {
+                        const h = 45 + Math.random() * 55;
+                        const bldg = new THREE.Mesh(new THREE.BoxGeometry(22, h, 28), bldgMat);
+                        bldg.position.set(x, h / 2, z);
+                        this.scene.add(bldg);
+                        this.sceneryGroups.CITY.push(bldg);
+                    });
+                }
+
+                // 2. MARKET
+                const stallMat = new THREE.MeshStandardMaterial({ color: 0x992244, roughness: 0.6 });
+                const clothMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.7 });
+                for (let z = 50; z >= -800; z -= 35) {
+                    [-22, 22].forEach(x => {
+                        const group = new THREE.Group();
+                        const stall = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 12), stallMat);
+                        stall.position.y = 4;
+                        const canopy = new THREE.Mesh(new THREE.ConeGeometry(9, 4, 4), clothMat);
+                        canopy.position.y = 10;
+                        canopy.rotation.y = Math.PI / 4;
+                        group.add(stall);
+                        group.add(canopy);
+                        group.position.set(x, 0, z);
+                        group.visible = false;
+                        this.scene.add(group);
+                        this.sceneryGroups.MARKET.push(group);
+                    });
+                }
+
+                // 3. MOUNTAINS
+                const mountainGeo = new THREE.ConeGeometry(55, 120, 5);
+                const mountainMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.9, flatShading: true });
+                const snowCapMat = new THREE.MeshStandardMaterial({ color: 0xedf2f7, roughness: 0.6, flatShading: true });
+                for (let z = 100; z >= -900; z -= 140) {
+                    [-110, 110].forEach(mx => {
+                        const mGroup = new THREE.Group();
+                        const base = new THREE.Mesh(mountainGeo, mountainMat);
+                        base.position.y = 50;
+                        mGroup.add(base);
+                        const cap = new THREE.Mesh(new THREE.ConeGeometry(24, 45, 5), snowCapMat);
+                        cap.position.y = 88;
+                        mGroup.add(cap);
+                        mGroup.position.set(mx, 0, z);
+                        mGroup.visible = false;
+                        this.scene.add(mGroup);
+                        this.sceneryGroups.MOUNTAINS.push(mGroup);
+                    });
+                }
+
+                // 4. JUNGLE
+                const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3d2817, roughness: 0.9 });
+                const leavesMat = new THREE.MeshStandardMaterial({ color: 0x134d1a, roughness: 0.7 });
+                for (let z = 50; z >= -800; z -= 40) {
+                    [-26, 26].forEach(x => {
+                        const tree = new THREE.Group();
+                        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 16, 8), trunkMat);
+                        trunk.position.y = 8;
+                        const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(9, 1), leavesMat);
+                        crown.position.y = 19;
+                        tree.add(trunk);
+                        tree.add(crown);
+                        tree.position.set(x, 0, z);
+                        tree.visible = false;
+                        this.scene.add(tree);
+                        this.sceneryGroups.JUNGLE.push(tree);
+                    });
+                }
+
+                // 5. DESERT
+                const rockMat = new THREE.MeshStandardMaterial({ color: 0x8a4b22, roughness: 0.95, flatShading: true });
+                for (let z = 50; z >= -800; z -= 65) {
+                    [-45, 45].forEach(x => {
+                        const dune = new THREE.Mesh(new THREE.ConeGeometry(36, 40, 6), rockMat);
+                        dune.position.set(x, 20, z);
+                        dune.visible = false;
+                        this.scene.add(dune);
+                        this.sceneryGroups.DESERT.push(dune);
+                    });
+                }
+            }
+
+            switchBiome(biomeIdx) {
+                this.currentBiomeIndex = biomeIdx;
+                const b = this.biomes[biomeIdx];
+
+                this.scene.background.setHex(b.sky);
+                this.scene.fog.color.setHex(b.fog);
+                this.scene.fog.density = b.density;
+                this.roadMat.color.setHex(b.road);
+
+                document.getElementById('biome-badge').innerText = `SECTOR: ${b.name}`;
+
+                Object.keys(this.sceneryGroups).forEach(key => {
+                    const isCurrent = (key === b.name);
+                    this.sceneryGroups[key].forEach(obj => {
+                        obj.visible = isCurrent;
+                    });
+                });
+            }
+
+            createRealisticCombatCar(colorHex, isPlayer = false) {
+                const group = new THREE.Group();
+                const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.35, metalness: 0.85 });
+                const darkMat = new THREE.MeshStandardMaterial({ color: 0x11141a, roughness: 0.6, metalness: 0.9 });
+                const glassMat = new THREE.MeshStandardMaterial({ color: 0x050b14, roughness: 0.1, metalness: 0.95 });
+
+                const hull = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.65, 5.0), bodyMat);
+                hull.position.y = 0.65;
+                group.add(hull);
+
+                const splitter = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.25, 1.2), darkMat);
+                splitter.position.set(0, 0.4, -2.4);
+                group.add(splitter);
+
+                const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.65, 2.2), glassMat);
+                cabin.position.set(0, 1.2, -0.2);
+                group.add(cabin);
+
+                const wheelGeo = new THREE.CylinderGeometry(0.48, 0.48, 0.42, 14);
+                wheelGeo.rotateZ(Math.PI / 2);
+                [[-1.3, 0.48, 1.4], [1.3, 0.48, 1.4], [-1.3, 0.48, -1.4], [1.3, 0.48, -1.4]].forEach(p => {
+                    const tire = new THREE.Mesh(wheelGeo, darkMat);
+                    tire.position.set(p[0], p[1], p[2]);
+                    group.add(tire);
+                });
+
+                const gunGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.8, 8);
+                gunGeo.rotateX(Math.PI / 2);
+                [-0.35, 0.35].forEach(gx => {
+                    const barrel = new THREE.Mesh(gunGeo, darkMat);
+                    barrel.position.set(gx, 1.75, -1.1);
+                    group.add(barrel);
+                });
+
+                return group;
+            }
+
+            spawnEnemyCar(x, z, colorHex = null) {
+                const palette = [0x822020, 0x22543d, 0x5a2d82, 0x8a5518, 0x1f4e79];
+                const color = colorHex || palette[Math.floor(Math.random() * palette.length)];
+                const mesh = this.createRealisticCombatCar(color, false);
+                mesh.position.set(x, 0, z);
+                this.scene.add(mesh);
+
+                this.rivals.push({
+                    mesh: mesh,
+                    hp: 100,
+                    alive: true,
+                    sideTimer: Math.floor(Math.random() * 30),
+                    sideDir: Math.random() > 0.5 ? 1 : -1,
+                    shootInterval: 50 + Math.floor(Math.random() * 25),
+                    targetOffsetZ: -35 - (this.rivals.length * 6)
+                });
+
+                document.getElementById('rival-count').innerText = this.rivals.filter(r => r.alive).length;
+            }
+
+            buildVehicles() {
+                this.player.mesh = this.createRealisticCombatCar(0x2d3748, true);
+                this.scene.add(this.player.mesh);
+
+                this.spawnEnemyCar(-5, -60, 0x822020);
+                this.spawnEnemyCar(5, -75, 0x22543d);
+            }
+
+            buildFinishArch() {
+                this.arch = new THREE.Group();
+                const steelMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, metalness: 0.8, roughness: 0.3 });
+                const neonSign = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+
+                const p1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 14, 1.5), steelMat);
+                p1.position.set(-13, 7, 0);
+                this.arch.add(p1);
+
+                const p2 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 14, 1.5), steelMat);
+                p2.position.set(13, 7, 0);
+                this.arch.add(p2);
+
+                const gantry = new THREE.Mesh(new THREE.BoxGeometry(28, 2, 2), steelMat);
+                gantry.position.set(0, 14, 0);
+                this.arch.add(gantry);
+
+                const sign = new THREE.Mesh(new THREE.BoxGeometry(22, 1.6, 0.4), neonSign);
+                sign.position.set(0, 13, 0.8);
+                this.arch.add(sign);
+
+                this.arch.position.set(0, 0, -this.raceLength);
+                this.scene.add(this.arch);
+            }
+
+            healPlayer() {
+                if (this.isOver || this.player.hp >= 100) return;
+                this.player.hp = Math.min(100, this.player.hp + 10);
+                document.getElementById('hp-bar').style.width = `${this.player.hp}%`;
+                document.getElementById('hp-txt').innerText = `${Math.round(this.player.hp)}%`;
+                
+                this.sound.playHeal();
+                const hFlash = document.getElementById('heal-flash');
+                hFlash.style.boxShadow = 'inset 0 0 60px rgba(0, 255, 102, 0.65)';
+                setTimeout(() => hFlash.style.boxShadow = 'inset 0 0 0 rgba(0, 255, 102, 0)', 80);
+            }
+
+            bindInputs() {
+                window.addEventListener('keydown', e => {
+                    if (e.code === 'KeyA' || e.code === 'ArrowLeft') this.inputs.left = true;
+                    if (e.code === 'KeyD' || e.code === 'ArrowRight') this.inputs.right = true;
+                    if (e.code === 'Space') this.fireGuns();
+                    if (e.code === 'KeyE') this.fireMissile();
+                    if (e.code === 'KeyH') this.healPlayer();
+                });
+                window.addEventListener('keyup', e => {
+                    if (e.code === 'KeyA' || e.code === 'ArrowLeft') this.inputs.left = false;
+                    if (e.code === 'KeyD' || e.code === 'ArrowRight') this.inputs.right = false;
+                });
+
+                const bindTouch = (id, onDown, onUp) => {
+                    const el = document.getElementById(id);
+                    el.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(); });
+                    el.addEventListener('touchend', (e) => { e.preventDefault(); onUp(); });
+                    el.addEventListener('mousedown', (e) => { e.preventDefault(); onDown(); });
+                    el.addEventListener('mouseup', (e) => { e.preventDefault(); onUp(); });
+                };
+
+                bindTouch('btn-left', () => { this.inputs.left = true; }, () => { this.inputs.left = false; });
+                bindTouch('btn-right', () => { this.inputs.right = true; }, () => { this.inputs.right = false; });
+                bindTouch('btn-fire', () => { this.fireGuns(); }, () => {});
+                bindTouch('btn-missile', () => { this.fireMissile(); }, () => {});
+                bindTouch('btn-heal', () => { this.healPlayer(); }, () => {});
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            fireGuns() {
+                this.sound.playGun(false);
+                [-0.35, 0.35].forEach(gx => {
+                    const bolt = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.06, 0.06, 2.0, 6),
+                        new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+                    );
+                    bolt.rotateX(Math.PI / 2);
+                    bolt.position.set(this.player.mesh.position.x + gx, 1.75, this.player.mesh.position.z - 2.2);
+                    this.scene.add(bolt);
+                    this.playerBullets.push({ mesh: bolt, dirZ: -4.8, life: 35 });
+                });
+            }
+
+            fireMissile() {
+                this.sound.playGun(false);
+                const rocket = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.22, 1.1, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xffaa00 })
+                );
+                rocket.rotateX(Math.PI / 2);
+                rocket.position.set(this.player.mesh.position.x, 1.6, this.player.mesh.position.z - 2.5);
+                this.scene.add(rocket);
+                this.missiles.push({ mesh: rocket, dirZ: -3.6, life: 50 });
+            }
+
+            enemyFire(rival) {
+                this.sound.playGun(true);
+                const deltaX = (this.player.mesh.position.x - rival.mesh.position.x) * 0.035;
+                [-0.35, 0.35].forEach(gx => {
+                    const bolt = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.07, 0.07, 2.0, 6),
+                        new THREE.MeshBasicMaterial({ color: 0xff0055 })
+                    );
+                    bolt.rotateX(Math.PI / 2);
+                    bolt.position.set(rival.mesh.position.x + gx, 1.75, rival.mesh.position.z + 2.2);
+                    this.scene.add(bolt);
+                    this.enemyBullets.push({ mesh: bolt, dirX: deltaX, dirZ: 3.8, life: 45 });
+                });
+            }
+
+            damagePlayer(amt) {
+                if (this.isOver || this.invulnerableTimer > 0 || this.hitCooldown > 0) return;
+                
+                this.player.hp = Math.max(0, this.player.hp - amt);
+                this.hitCooldown = 20;
+                document.getElementById('hp-bar').style.width = `${this.player.hp}%`;
+                document.getElementById('hp-txt').innerText = `${Math.round(this.player.hp)}%`;
+
+                const flash = document.getElementById('damage-flash');
+                flash.style.boxShadow = 'inset 0 0 60px rgba(255, 0, 85, 0.65)';
+                setTimeout(() => flash.style.boxShadow = 'inset 0 0 0 rgba(255, 0, 85, 0)', 60);
+
+                if (this.player.hp <= 0) {
+                    this.sound.playExplosion();
+                    this.spawnExplosionParticles(this.player.mesh.position);
+                    this.scene.remove(this.player.mesh);
+                    this.end(false);
+                }
+            }
+
+            spawnExplosionParticles(pos) {
+                for (let i = 0; i < 28; i++) {
+                    const p = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.3 + Math.random() * 0.3, 6, 6),
+                        new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0xff2200 : 0xffbb00 })
+                    );
+                    p.position.copy(pos);
+                    this.scene.add(p);
+                    this.particles.push({
+                        mesh: p,
+                        vel: new THREE.Vector3((Math.random() - 0.5) * 1.2, Math.random() * 1.2, (Math.random() - 0.5) * 1.2),
+                        life: 30
+                    });
+                }
+            }
+
+            triggerKillUI() {
+                const el = document.getElementById('kill-popup');
+                el.style.display = 'block';
+                setTimeout(() => { el.style.display = 'none'; }, 850);
+            }
+
+            handleRivalKilled(deadRival) {
+                deadRival.alive = false;
+                this.sound.playExplosion();
+                this.spawnExplosionParticles(deadRival.mesh.position);
+                this.scene.remove(deadRival.mesh);
+
+                this.score += 500;
+                this.mult++;
+                document.getElementById('score-txt').innerText = this.score;
+                document.getElementById('mult-txt').innerText = `X${this.mult}`;
+                this.triggerKillUI();
+
+                const currentCount = this.rivals.filter(r => r.alive).length;
+                const toSpawn = Math.min(2, this.maxRivalsOnScreen - currentCount);
+
+                for (let s = 0; s < toSpawn; s++) {
+                    const spawnX = (Math.random() - 0.5) * 16;
+                    const spawnZ = -85 - (Math.random() * 35);
+                    this.spawnEnemyCar(spawnX, spawnZ);
+                }
+
+                this.rivals = this.rivals.filter(r => r.alive);
+                document.getElementById('rival-count').innerText = this.rivals.length;
+            }
+
+            end(win) {
+                this.isOver = true;
+                if (this.sound.themeAudio) this.sound.themeAudio.pause();
+                const sc = document.getElementById('end-screen');
+                const t = document.getElementById('end-title');
+                if (win) {
+                    t.innerText = 'VICTORY // 10-MIN SURVIVAL CHAMPION';
+                    t.style.color = '#00ff66';
+                    t.style.textShadow = '0 0 30px #00ff66';
+                } else {
+                    t.innerText = 'WRECKED // MISSION FAILED';
+                    t.style.color = '#ff0055';
+                    t.style.textShadow = '0 0 30px #ff0055';
+                }
+                sc.style.display = 'flex';
+            }
+
+            animate() {
+                if (this.isOver) return;
+                requestAnimationFrame(() => this.animate());
+
+                if (this.invulnerableTimer > 0) this.invulnerableTimer--;
+                if (this.hitCooldown > 0) this.hitCooldown--;
+
+                if (this.inputs.left) this.player.x = Math.max(-10, this.player.x - 0.24);
+                if (this.inputs.right) this.player.x = Math.min(10, this.player.x + 0.24);
+                if (this.player.mesh) this.player.mesh.position.x = this.player.x;
+
+                const speed = 2.2;
+                this.progress += speed * 0.4;
+                const rem = Math.max(0, this.raceLength - this.progress);
+
+                const calculatedBiomeIdx = Math.floor(this.progress / this.biomeIntervalDistance) % this.biomes.length;
+                if (calculatedBiomeIdx !== this.currentBiomeIndex) {
+                    this.switchBiome(calculatedBiomeIdx);
+                }
+
+                const remainingSeconds = Math.max(0, Math.floor((rem / this.raceLength) * this.totalTimeSeconds));
+                const mins = Math.floor(remainingSeconds / 60);
+                const secs = remainingSeconds % 60;
+                const timeFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+                document.getElementById('dist-txt').innerText = `${timeFormatted} (${Math.round(rem)}m REMAINING)`;
+                document.getElementById('progress-bar').style.width = `${(this.progress / this.raceLength) * 100}%`;
+
+                this.roadPlates.forEach(r => {
+                    r.position.z += speed;
+                    if (r.position.z > 300) r.position.z -= 900;
+                });
+
+                const curName = this.biomes[this.currentBiomeIndex].name;
+                this.sceneryGroups[curName].forEach(sc => {
+                    sc.position.z += speed * 0.8;
+                    if (sc.position.z > 150) sc.position.z -= 950;
+                });
+
+                this.arch.position.z = -(this.raceLength - this.progress);
+
+                this.rivals.forEach(r => {
+                    if (!r.alive) return;
+
+                    r.sideTimer++;
+                    if (r.sideTimer > 35) {
+                        r.sideTimer = 0;
+                        r.sideDir *= -1;
+                    }
+                    r.mesh.position.x += r.sideDir * 0.08;
+                    r.mesh.position.x = Math.max(-10, Math.min(10, r.mesh.position.x));
+
+                    const desiredZ = this.player.mesh.position.z + r.targetOffsetZ;
+                    r.mesh.position.z += (desiredZ - r.mesh.position.z) * 0.035;
+
+                    r.shootInterval--;
+                    if (r.shootInterval <= 0) {
+                        r.shootInterval = 50 + Math.floor(Math.random() * 25);
+                        this.enemyFire(r);
+                    }
+                });
+
+                // Player bullets
+                for (let i = this.playerBullets.length - 1; i >= 0; i--) {
+                    const b = this.playerBullets[i];
+                    b.mesh.position.z += b.dirZ;
+                    b.life--;
+
+                    for (let r of this.rivals) {
+                        if (r.alive && b.mesh.position.distanceTo(r.mesh.position) < 2.5) {
+                            r.hp -= 30;
+                            this.scene.remove(b.mesh);
+                            this.playerBullets.splice(i, 1);
+                            if (r.hp <= 0) {
+                                this.handleRivalKilled(r);
+                            }
+                            break;
+                        }
+                    }
+                    if (b.life <= 0) {
+                        this.scene.remove(b.mesh);
+                        this.playerBullets.splice(i, 1);
+                    }
+                }
+
+                // Enemy Bullets with Exact 5% Damage
+                for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+                    const eb = this.enemyBullets[i];
+                    const prevZ = eb.mesh.position.z;
+                    eb.mesh.position.x += eb.dirX;
+                    eb.mesh.position.z += eb.dirZ;
+                    eb.life--;
+
+                    const playerZ = this.player.mesh ? this.player.mesh.position.z : 0;
+                    const sweptThroughZ = (prevZ <= playerZ + 2.0 && eb.mesh.position.z >= playerZ - 2.0);
+                    const closeInX = Math.abs(eb.mesh.position.x - this.player.x) < 2.2;
+
+                    if (this.player.mesh && sweptThroughZ && closeInX) {
+                        this.damagePlayer(5);
+                        this.scene.remove(eb.mesh);
+                        this.enemyBullets.splice(i, 1);
+                        continue;
+                    }
+
+                    if (eb.life <= 0 || eb.mesh.position.z > 15) {
+                        this.scene.remove(eb.mesh);
+                        this.enemyBullets.splice(i, 1);
+                    }
+                }
+
+                // Missiles
+                for (let i = this.missiles.length - 1; i >= 0; i--) {
+                    const m = this.missiles[i];
+                    m.mesh.position.z += m.dirZ;
+                    m.life--;
+
+                    for (let r of this.rivals) {
+                        if (r.alive && m.mesh.position.distanceTo(r.mesh.position) < 2.8) {
+                            r.hp -= 80;
+                            this.sound.playExplosion();
+                            this.spawnExplosionParticles(r.mesh.position);
+                            this.scene.remove(m.mesh);
+                            this.missiles.splice(i, 1);
+                            if (r.hp <= 0) {
+                                this.handleRivalKilled(r);
+                            }
+                            break;
+                        }
+                    }
+                    if (m.life <= 0) {
+                        this.scene.remove(m.mesh);
+                        this.missiles.splice(i, 1);
+                    }
+                }
+
+                // Particles
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.mesh.position.add(p.vel);
+                    p.life--;
+                    if (p.life <= 0) {
+                        this.scene.remove(p.mesh);
+                        this.particles.splice(i, 1);
+                    }
+                }
+
+                this.camera.position.set(this.player.x * 0.35, 4.4, 8.5);
+                this.camera.lookAt(this.player.x * 0.5, 1.4, -18);
+
+                if (this.progress >= this.raceLength && this.player.hp > 0) this.end(true);
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        const Engine = new HighFidelityDeathRace();
+    </script>
+</body>
+</html>
